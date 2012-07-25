@@ -1,0 +1,49 @@
+package gqlMain;
+
+public class SubNode extends Node{
+     ////////////////////////////////////////////////////////////////////////////
+    // MEMBER VARIABLES
+    ////////////////////////////////////////////////////////////////////////////
+    private String subNodeName;
+    private double subNodeDouble;
+    
+    ////////////////////////////////////////////////////////////////////////////
+    // CONSTRUCTORS
+    ////////////////////////////////////////////////////////////////////////////
+    public SubNode() {
+        this.subNodeName = null;
+        this.subNodeDouble = 0.0;
+    }
+    
+    public SubNode(String name) {
+        this.subNodeName = name;
+        this.subNodeDouble = 0.0;
+    }
+
+    public SubNode(String name, double snd) {
+        this.subNodeName = name;
+        this.subNodeDouble = snd;
+    }
+    
+    ////////////////////////////////////////////////////////////////////////////
+    // GETTERS
+    ////////////////////////////////////////////////////////////////////////////
+    public String getName() {
+        return this.subNodeName;
+    }
+
+    public double getDouble() {
+        return this.subNodeDouble;
+    }
+    
+    ////////////////////////////////////////////////////////////////////////////
+    // SETTERS
+    ////////////////////////////////////////////////////////////////////////////
+    public void setName(String name) {
+        this.subNodeName = name;
+    }
+
+    public void setDouble(double dub) {
+        this.subNodeDouble = dub;
+    }
+}

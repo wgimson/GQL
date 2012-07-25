@@ -1,0 +1,378 @@
+/*---------------------Preliminary Declarations Section----------------------*/
+/* import the class java_cup.runtime */
+import java_cup.runtime.*;
+import java.util.Vector;
+import java.util.HashMap;
+import java.util.LinkedList;
+
+/* Make the parser include line and column number in error reports */
+parser code {:
+    
+    /* the reason for the error is passed into the following method through the
+       'message' String */
+    public void report_error(String message, Object info) {
+        StringBuffer m = new StringBuffer("Error");
+
+        /* Check if information passed to the method is the same type as 
+           java_cup.runtime.Symbol */
+        if (info instanceof java_cup.runtime.Symbol) {
+            
+            /* Declare a java_cup.runtime.Symbol object 's' which will wrap the
+               information in the Object 'info' */
+            java_cup.runtime.Symbol s = ((java_cup.runtime.Symbol) info);
+
+            /* Check if line number in 'info' is greater than of equal to 
+               zero */
+            if (s.left >= 0) {
+
+                /* Add the line number of the error to the end of the 
+                   StringBuffer error message */
+                m.append(" in line " + (s.left + 1));
+
+                /* Check if the column number in 'info' is greater than of equal 
+                   to zero */
+                if (s.right >= 0) {
+
+                    /* Add the column number of the error to the end of the 
+                       StringBuffer error message */
+                    m.append(", column " + (s.right + 1));
+                }
+            }
+        }
+
+        /* Add error message passed into the method to the end of 
+        StringBuffer */
+	    m.append(" : " + message);
+
+	    /* Print contents of StringBuffer m */
+	    System.err.println(m);
+      }
+
+      /* Change method report_fatal_error so it will display the line and column
+         number of the error as well as the reason for the error, which is 
+         passed in with the Object 'message' */
+      public void report_fatal_error(String message, Object info) {
+          report_error(message, info);
+          System.exit(1);
+      }
+:};
+	    
+/*-------------Declaration of Terminals and Non Terminals Section-------------*/	    
+/* Terminals */
+    
+    /* Terminals (tokens returned by scanner) with no value are listed first,
+       followed by Terminals with a value */
+
+terminal            SEMI, COMMA, LPAREN, RPAREN, DOT, LBRACK, RBRACK, UNDERSCORE, 
+                    STAR, EQUAL, ERROR;
+
+terminal String     LET, FOR, IN, RETURN, WHERE, VARIABLE, NODES, EDGES, PATHS, 
+                    COMPARISON, AND, NUMBER, STRING, POSNUMBER, S;
+
+
+/* Non Terminals */
+
+    /* Non terminals with an Object value are listed first, followed by 
+       non terminals with an integer value */
+
+non terminal Query                          gql, gql_expr;
+
+non terminal Vector<ForOrLetObject>         for_clause, let_clause;
+
+non terminal LinkedList<Argument>           return_clause;
+
+non terminal HashMap                        where_clause;
+
+non terminal ForOrLetObject                 for_expr, let_expr;
+
+non terminal LinkedList<Argument>           return_expr;
+
+non terminal Vector<Condition>              conditional_expr;
+
+non terminal GraphObject                    graph_object_expr;
+
+non terminal Argument                       variable_expr, dot_member, 
+                                            l_dot_expr, r_dot_expr;
+
+non terminal Condition                      simple_conditional_expr;
+
+non terminal NodeOrEdgeObject               node_or_edge_expr, node_expr;
+
+non terminal SimplePath                     simple_path_expr;
+
+non terminal Predicate                      predicate;
+
+non terminal String                         constant_expr;
+/*-----------------------------------------------------------------------------*
+ *-----------------------------THINGS TO ADD-----------------------------------*
+ * 1. Nesting                                                                  *
+ * 2. node_or_edge_expr vs node_expr or edge_expr - are these different? - do  *
+ *    they need to be separated?                                               *
+ * 3. Add Ors, And-Ors, parenthesis for precedence, etc.                       *
+ * 4. Add hyperpath to graph_object                                            *
+ * 5. Add Java methods to dot_expr                                             *
+/*-----------------------------Grammar Section--------------------------------*/
+
+gql ::= gql_expr:expr SEMI 
+    {: RESULT = expr; :} 
+;
+    
+gql_expr ::= FOR for_clause:forC RETURN return_clause:returnC
+    {: Query q = new Query(forC, returnC);
+       RESULT = q; :}
+    |
+    LET let_clause:letC FOR for_clause:forC RETURN return_clause:returnC 
+    {: Query q = new Query(letC, forC, returnC);
+       RESULT = q; :}
+    |
+    FOR for_clause:forC WHERE where_clause:whereC RETURN return_clause:returnC
+    {: Query q = new Query(forC, whereC, returnC);
+       RESULT = q; :}
+    |
+    LET let_clause:letC FOR for_clause:forC WHERE where_clause:whereC RETURN return_clause:returnC
+    {: Query q = new Query(letC, forC, whereC, returnC);
+       RESULT = q; :}
+;
+
+for_clause ::= for_expr:forExpr
+    {: Vector<ForOrLetObject> forClause = new Vector();
+       forClause.add(forExpr);
+       RESULT = forClause; :}
+    |
+    for_clause:forC COMMA for_expr:forExpr
+    {: Vector<ForOrLetObject> forClause = new Vector();
+       forClause.add(forExpr);
+       forClause.addAll(forC);
+       RESULT = forClause; :}
+;
+
+let_clause ::= let_expr:let                                 
+    {: Vector<ForOrLetObject> letClause = new Vector();
+       letClause.add(let);
+       RESULT = letClause; :}
+    |
+    let_clause:letC COMMA let_expr:let
+    {: Vector<ForOrLetObject> letClause = new Vector();
+       letClause.add(let);
+       letClause.addAll(letC);
+       RESULT = letClause; :}
+;
+
+return_clause ::= LPAREN return_expr:ret RPAREN 
+    {: RESULT = ret; :}
+;
+
+where_clause ::=  conditional_expr:cond 
+    {: HashMap<Integer, Vector<Condition>> whereClause = new HashMap();
+       whereClause.put((Integer) whereClause.size()+1, cond);
+       RESULT = whereClause; :}
+;
+
+for_expr ::= VARIABLE:varName IN graph_object_expr:graphObj
+    {: ForOrLetObject forExpression = new ForOrLetObject(varName, graphObj);
+       forExpression.setIsFor(true);
+       RESULT = forExpression; :}
+;
+
+let_expr ::= VARIABLE:varName EQUAL graph_object_expr:graphObj 
+    {: ForOrLetObject letExpression = new ForOrLetObject(varName, graphObj);
+       letExpression.setIsLet(true);
+       RESULT = letExpression; :}
+;
+
+return_expr ::= variable_expr:var 
+    {: LinkedList<Argument> retList = new LinkedList();
+       retList.add(var);
+       RESULT = retList; :}
+    |
+    return_expr:ret COMMA variable_expr:var
+    {: LinkedList<Argument> retList = new LinkedList();
+       retList.add(var);
+       retList.addAll(ret);
+       RESULT = retList; :}
+;
+
+conditional_expr ::= simple_conditional_expr:simpleCond
+    {: Vector<Condition> conditions = new Vector();
+       conditions.add(simpleCond);
+       RESULT = conditions; :}
+    |
+    conditional_expr:conds AND simple_conditional_expr:simpleCond
+    {: Vector<Condition> conditions = new Vector();
+       conditions.add(simpleCond);
+       conditions.addAll(conds);
+       RESULT = conditions; :}
+;
+
+graph_object_expr ::= NODES node_or_edge_expr:nExpr
+    {: GraphObject gObj = new GraphObject(nExpr);
+       gObj.setIsNode(true);
+       RESULT = gObj; :}
+    |
+    EDGES node_or_edge_expr:eExpr
+    {: GraphObject gObj = new GraphObject(eExpr);
+       gObj.setIsEdge(true);
+       RESULT = gObj; :}
+    |
+    PATHS simple_path_expr:simplePath 
+    {: GraphObject gObj = new GraphObject(simplePath);
+       gObj.setIsPath(true);
+       RESULT = gObj; :}
+;
+
+variable_expr ::= VARIABLE:varName              
+    {: Argument arg = new Argument(varName);   
+       //arg.setIsObject(true);             // we changed the grammar so that the head argument is
+       RESULT = arg; :}                     // now outside of the Predicate; this means that we no
+    |                                       // longer know for sure that a lone Argument is an object
+    VARIABLE:varName DOT dot_member:dotMem
+    {: Argument arg = new Argument(varName); 
+       arg.setIsObject(true);
+       arg.setChild(dotMem);
+       dotMem.setParent(arg);
+       RESULT = arg; :}
+    |
+    VARIABLE:varName POSNUMBER:num  // Perhaps change these to long type in 
+    {: Argument arg = new Argument(varName); // Argument class to accomodate 
+       arg.setIsSequence(true); // larger numbers
+       Argument sequenceChild = 
+           new Argument(Integer.valueOf(num.substring(1,num.length()-1)).intValue());
+       sequenceChild.setIsSequenceChild(true);
+       arg.setChild(sequenceChild);
+       sequenceChild.setParent(arg);
+       RESULT = arg; :}
+    |
+    VARIABLE:varName POSNUMBER:num DOT dot_member:dotMem
+    {: Argument arg = new Argument(varName);
+       arg.setIsSequence(true);
+       Argument sequenceChild = 
+           new Argument(Integer.valueOf(num.substring(1,num.length()-1)).intValue());
+       sequenceChild.setIsSequenceChild(true);
+       sequenceChild.setIsObject(true);
+       sequenceChild.setChild(dotMem); 
+       dotMem.setParent(sequenceChild);
+       arg.setChild(sequenceChild);
+       sequenceChild.setParent(arg);
+       RESULT = arg; :}
+;
+
+simple_conditional_expr ::= l_dot_expr:lDot COMPARISON:comp r_dot_expr:rDot
+    {: Condition cond = new Condition(comp, lDot, rDot);
+       RESULT = cond; :}
+;
+
+dot_member ::= VARIABLE:varName
+    {: Argument arg = new Argument(varName);
+       arg.setIsMemberVariable(true);
+       RESULT = arg; :}
+    |
+    VARIABLE:varName DOT dot_member:dotMem
+    {: Argument arg = new Argument(varName);
+       arg.setIsObject(true);
+       arg.setChild(dotMem);
+       dotMem.setParent(arg);
+       RESULT = arg; :}
+    | 
+    VARIABLE:varName POSNUMBER:num 
+    {: Argument arg = new Argument(varName);
+       arg.setIsSequence(true);
+       Argument sequenceChild = 
+           new Argument(Integer.valueOf(num.substring(1,num.length()-1)).intValue());
+       sequenceChild.setIsSequenceChild(true);
+       arg.setChild(sequenceChild);
+       sequenceChild.setParent(arg);
+       RESULT = arg; :}
+    |
+    VARIABLE:varName POSNUMBER:num DOT dot_member:dotMem
+    {: Argument arg = new Argument(varName);
+       arg.setIsSequence(true);
+       Argument sequenceChild = 
+               new Argument(Integer.valueOf(num.substring(1,num.length()-1)).intValue());
+       sequenceChild.setIsSequenceChild(true);
+       sequenceChild.setIsObject(true);
+       sequenceChild.setChild(dotMem);
+       dotMem.setParent(sequenceChild);
+       arg.setChild(sequenceChild);
+       sequenceChild.setParent(arg);
+       RESULT = arg; :}
+;
+
+node_or_edge_expr ::= VARIABLE:argName  
+    {: Argument headArg = new Argument(argName);
+       headArg.setIsObject(true);
+       NodeOrEdgeObject nodeOrEdge = new NodeOrEdgeObject(headArg);
+       RESULT = nodeOrEdge; :}
+    |
+    VARIABLE:argName LBRACK predicate:pred RBRACK
+    {: Argument headArg = new Argument(argName);
+       headArg.setIsObject(true);
+       NodeOrEdgeObject nodeOrEdge = new NodeOrEdgeObject(headArg, pred);
+       RESULT = nodeOrEdge; :}
+;
+
+simple_path_expr ::= VARIABLE:varName node_expr:lOp UNDERSCORE node_expr:rOp 
+    {: SimplePath path = new SimplePath(varName, lOp, rOp);
+       RESULT = path; :}
+    |
+    VARIABLE:varName node_expr:lOp UNDERSCORE S node_expr:rOp // Is it really registering
+    {: SimplePath path = new SimplePath(varName, lOp, rOp); // the S or just
+       path.setIsShortestPath(true); // lumping it in with the next variable
+       RESULT = path; :} // name
+    |
+    VARIABLE:varName node_expr:lOp UNDERSCORE STAR node_expr:rOp
+    {: SimplePath path = new SimplePath(varName, lOp, rOp);
+       path.setIsEveryPath(true);
+       RESULT = path; :}
+    |
+    VARIABLE:varName node_expr:lOp UNDERSCORE POSNUMBER:posNum node_expr:rOp
+    {: SimplePath path = new SimplePath(varName, lOp, rOp);
+       path.setIsFixedLengthPath(true);
+       path.setPathLength(posNum);
+       RESULT = path; :}
+;
+
+l_dot_expr ::= variable_expr:var
+    {: RESULT = var; :}
+;
+
+r_dot_expr ::= constant_expr:cons 
+    {: Argument arg = new Argument();
+       arg.setConstant(cons); 
+       RESULT = arg; :}
+    |
+    variable_expr:var
+    {: RESULT = var; :}
+;
+
+predicate ::= conditional_expr:conds 
+    {: Predicate pred = new Predicate(conds);
+       RESULT = pred; :}
+    |
+    LPAREN VARIABLE:subclass RPAREN             
+    {: Predicate pred = new Predicate(subclass);   
+       RESULT = pred; :}                            
+    | 
+    LPAREN VARIABLE:subclass RPAREN conditional_expr:conds      
+    {: Predicate pred = new Predicate(subclass, conds);
+       RESULT = pred; :}
+;
+
+node_expr ::= VARIABLE:argName              
+    {: Argument headArg = new Argument(argName);
+       NodeOrEdgeObject nodeOrEdge = new NodeOrEdgeObject(headArg);
+       nodeOrEdge.setIsNode(true);
+       RESULT = nodeOrEdge; :}
+    |
+    VARIABLE:argName LBRACK predicate:pred RBRACK
+    {: Argument headArg = new Argument(argName);
+       NodeOrEdgeObject nodeOrEdge = new NodeOrEdgeObject(headArg, pred);
+       nodeOrEdge.setIsNode(true);
+       RESULT = nodeOrEdge; :}
+;
+
+constant_expr ::= NUMBER:num
+    {: RESULT = num; :}
+    |
+    STRING:str
+    {: RESULT = str; :}
+;
